@@ -1,5 +1,6 @@
 import gc
 import logging
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -212,7 +213,14 @@ class CPUMujocoEnv(BaseMujocoEnv):
         if self._use_filament:
             self._renderer = MjFilamentRenderer(model=self.mj_model, width=width, height=height)
         else:
-            self._renderer = MjOpenGLRenderer(model=self.mj_model, width=width, height=height)
+            log.info("Using MuJoCo renderer: classic")
+            egl_device_id = int(os.environ.get("MUJOCO_EGL_DEVICE_ID", "0"))
+            self._renderer = MjOpenGLRenderer(
+                model=self.mj_model,
+                width=width,
+                height=height,
+                device_id=egl_device_id,
+            )
 
         if self._parallelize and self._n_batch > 1:
             self._executor = ThreadPoolExecutor(max_workers=self._n_batch)

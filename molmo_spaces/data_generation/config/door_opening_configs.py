@@ -166,3 +166,13 @@ class DoorOpeningDebugConfig(DoorOpeningDataGenConfig):
 
     def tag(self) -> str:
         return "rby1_door_opening_debug"
+
+
+@register_config("DoorOpeningNoViewerDebugConfig")
+class DoorOpeningNoViewerDebugConfig(DoorOpeningDebugConfig):
+    """Door opening debug config without the passive MuJoCo viewer."""
+
+    use_passive_viewer: bool = False
+
+    def tag(self) -> str:
+        return "rby1_door_opening_no_viewer_debug"
