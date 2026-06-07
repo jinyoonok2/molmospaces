@@ -448,6 +448,7 @@ def run_evaluation(
     add_custom_object: bool = False,
     custom_object_path: str | Path | None = None,
     custom_object_name: str | None = None,
+    terminate_upon_success: bool | None = None,
 ) -> EvaluationResults:
     """Run evaluation on a JSON benchmark programmatically.
 
@@ -604,6 +605,8 @@ def run_evaluation(
         num_workers=num_workers,
         camera_config_override=camera_config_override,
     )
+    if terminate_upon_success is not None:
+        exp_config.terminate_upon_success = terminate_upon_success
 
     # Custom filmanet settings to overwrite by the user
     exp_config.use_filament |= use_filament
