@@ -6,6 +6,7 @@ for use in the data generation pipeline.
 """
 
 import math
+import os
 from pathlib import Path
 
 from molmo_spaces.configs import BasePolicyConfig, BaseRobotConfig
@@ -62,6 +63,18 @@ from molmo_spaces.tasks.pick_and_place_task_sampler import (
 from molmo_spaces.tasks.pick_task_sampler import PickTaskSampler
 from molmo_spaces.utils.constants.object_constants import PICK_AND_PLACE_OBJECTS
 from molmo_spaces.utils.synset_utils import get_valid_pickupable_obja_uids
+
+
+def _rby1_curobo_server_urls() -> list[str] | None:
+    """Allow eval launchers to force local cuRobo by clearing server URLs."""
+    raw_urls = os.environ.get("RBY1_CUROBO_SERVER_URLS")
+    if raw_urls is None:
+        return None
+
+    if raw_urls.strip().lower() in {"", "local", "none", "null", "[]"}:
+        return []
+
+    return [url.strip() for url in raw_urls.split(",") if url.strip()]
 
 
 @register_config("FrankaPickDroidDataGenConfig")
@@ -356,11 +369,13 @@ class RBY1PickAndPlaceDataGenConfig(PickAndPlaceDataGenConfig):
         right_curobo_planner_config.curobo_robot_config_path = str(
             rby1_path / "curobo_config" / "rby1m_right_arm_holobase.yml"
         )
+        server_urls = _rby1_curobo_server_urls()
         return CuroboPickAndPlacePlannerPolicyConfig(
             policy_cls=CuroboPickAndPlacePlannerPolicy,
             left_curobo_planner_config=left_curobo_planner_config,
             right_curobo_planner_config=right_curobo_planner_config,
             enable_collision_avoidance=True,
+            **({} if server_urls is None else {"server_urls": server_urls}),
         )
 
     def model_post_init(self, __context) -> None:
@@ -433,11 +448,13 @@ class RBY1PickDataGenConfig(PickBaseConfig):
         right_curobo_planner_config.curobo_robot_config_path = str(
             rby1_path / "curobo_config" / "rby1m_right_arm_holobase.yml"
         )
+        server_urls = _rby1_curobo_server_urls()
         return CuroboPickAndPlacePlannerPolicyConfig(
             policy_cls=CuroboPickAndPlacePlannerPolicy,
             left_curobo_planner_config=left_curobo_planner_config,
             right_curobo_planner_config=right_curobo_planner_config,
             enable_collision_avoidance=True,
+            **({} if server_urls is None else {"server_urls": server_urls}),
         )
 
     def model_post_init(self, __context) -> None:

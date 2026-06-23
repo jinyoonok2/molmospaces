@@ -486,6 +486,15 @@ class JsonEvalTaskSampler(BaseMujocoTaskSampler):
                         f"It may not exist in the base scene or may be an added object."
                     )
 
+        # JSON benchmark episodes describe the task objects, but planner policies
+        # may still need runtime-only helper bodies in the compiled MuJoCo model
+        # (for example grasp_collision_* bodies for grasp collision checking).
+        policy_config = getattr(self.config, "policy_config", None)
+        policy_cls = getattr(policy_config, "policy_cls", None)
+        add_policy_aux = getattr(policy_cls, "add_auxiliary_objects", None)
+        if add_policy_aux is not None:
+            add_policy_aux(self.config, spec)
+
         added_objects = self.episode_spec.scene_modifications.added_objects
         object_poses = self.episode_spec.scene_modifications.object_poses
 

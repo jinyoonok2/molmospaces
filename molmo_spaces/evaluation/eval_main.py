@@ -449,6 +449,7 @@ def run_evaluation(
     custom_object_path: str | Path | None = None,
     custom_object_name: str | None = None,
     terminate_upon_success: bool | None = None,
+    save_partial_trajectories_on_exception: bool | None = None,
 ) -> EvaluationResults:
     """Run evaluation on a JSON benchmark programmatically.
 
@@ -476,6 +477,8 @@ def run_evaluation(
         custom_object_path: Path to the custom object XML file. Required if add_custom_object is True.
         custom_object_name: Natural language name for the custom object (e.g., 'lemon', 'cup').
             If not provided, will attempt to extract from the object path.
+        save_partial_trajectories_on_exception: Save partial observations/videos when a rollout
+            aborts with an exception after collecting history.
 
     Returns:
         EvaluationResults containing success counts, output paths, and per-episode details.
@@ -607,6 +610,10 @@ def run_evaluation(
     )
     if terminate_upon_success is not None:
         exp_config.terminate_upon_success = terminate_upon_success
+    if save_partial_trajectories_on_exception is not None:
+        exp_config.save_partial_trajectories_on_exception = (
+            save_partial_trajectories_on_exception
+        )
 
     # Custom filmanet settings to overwrite by the user
     exp_config.use_filament |= use_filament

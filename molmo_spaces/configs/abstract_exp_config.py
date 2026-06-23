@@ -96,6 +96,7 @@ class MlSpacesExpConfig(Config, ABC):
     PolicyConfig: ClassVar[type] = BasePolicyConfig
 
     filter_for_successful_trajectories: bool = True  # If True, only save successful trajectories to main output directory (failed episodes may be sampled 1% for debug directory). If False, save all trajectories to main output directory.
+    save_partial_trajectories_on_exception: bool = False  # If True, save any collected history from rollouts that abort with an exception.
 
     use_filament: bool = False
     environment_light_intensity: float = 15000.0

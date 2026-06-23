@@ -1082,6 +1082,35 @@ class ParallelRolloutRunner:
                         traceback.print_exc()
                         num_sequential_rollout_failures += 1
 
+                        if getattr(exp_config, "save_partial_trajectories_on_exception", False):
+                            try:
+                                history = task.get_history()
+                                observations = history.get("observations", [])
+                                if observations:
+                                    house_raw_histories.append(
+                                        {
+                                            "history": history,
+                                            "sensor_suite": task.sensor_suite,
+                                            "success": False,
+                                            "seed": episode_seed,
+                                        }
+                                    )
+                                    house_total_count += 1
+                                    worker_logger.info(
+                                        "Queueing partial failed trajectory for saving "
+                                        f"(seed: {episode_seed}, exception: {e})"
+                                    )
+                                else:
+                                    worker_logger.warning(
+                                        "Partial trajectory saving requested, but rollout "
+                                        "history has no observations"
+                                    )
+                            except Exception as save_error:
+                                worker_logger.warning(
+                                    "Failed to queue partial trajectory after rollout "
+                                    f"exception: {save_error}"
+                                )
+
                         # Report failure for this asset (may lead to dynamic blacklisting)
                         try:
                             asset_uid = task_sampler.get_asset_uid_from_object(
