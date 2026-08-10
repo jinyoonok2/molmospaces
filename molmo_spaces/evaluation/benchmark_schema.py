@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RobotSpec(BaseModel):
@@ -176,6 +176,14 @@ class OpenCloseTaskSpec(BaseTaskSpec):
     # Success criteria
     task_success_threshold: float = 0.20  # percentage of opening
     any_inst_of_category: bool = False
+
+    @field_validator("joint_start_position", "joint_goal_position", mode="before")
+    @classmethod
+    def _unwrap_single_joint_position(cls, value):
+        """Accept legacy benchmarks that stored scalar joint positions as [value]."""
+        if isinstance(value, list) and len(value) == 1:
+            return value[0]
+        return value
 
 
 class NavToObjTaskSpec(BaseTaskSpec):

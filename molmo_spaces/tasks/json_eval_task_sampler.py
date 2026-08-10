@@ -98,6 +98,24 @@ TASK_CLASS_TO_SPEC_CLASS: dict[str, type[BaseTaskSpec]] = {
 }
 
 
+LEGACY_TASK_CLASS_PATHS: dict[str, str] = {
+    "mujoco_thor.tasks.pick_task.PickTask": "molmo_spaces.tasks.pick_task.PickTask",
+    "mujoco_thor.tasks.pick_and_place_task.PickAndPlaceTask": (
+        "molmo_spaces.tasks.pick_and_place_task.PickAndPlaceTask"
+    ),
+    "mujoco_thor.tasks.opening_tasks.OpeningTask": (
+        "molmo_spaces.tasks.opening_tasks.OpeningTask"
+    ),
+    "mujoco_thor.tasks.opening_tasks.DoorOpeningTask": (
+        "molmo_spaces.tasks.opening_tasks.DoorOpeningTask"
+    ),
+}
+
+
+def normalize_task_class_path(class_path: str) -> str:
+    return LEGACY_TASK_CLASS_PATHS.get(class_path, class_path)
+
+
 def import_class_from_string(class_path: str) -> type:
     """
     Dynamically import a class from its fully qualified name.
@@ -112,6 +130,7 @@ def import_class_from_string(class_path: str) -> type:
         ImportError: If module cannot be imported
         AttributeError: If class not found in module
     """
+    class_path = normalize_task_class_path(class_path)
     parts = class_path.rsplit(".", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid class path: {class_path}. Expected 'module.ClassName' format.")
@@ -326,7 +345,7 @@ class JsonEvalTaskSampler(BaseMujocoTaskSampler):
             return task_type
 
         # Infer from task_cls
-        task_cls = spec.get_task_cls()
+        task_cls = normalize_task_class_path(spec.get_task_cls())
         task_cls_to_type = {
             "molmo_spaces.tasks.pick_task.PickTask": "pick",
             "molmo_spaces.tasks.opening_tasks.OpeningTask": "open",
