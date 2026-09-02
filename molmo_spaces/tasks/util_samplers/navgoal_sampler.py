@@ -149,16 +149,20 @@ class NavGoalSampler:
         # Compute distances of free boundary pixels to the object's center in pixel space
         distances = np.linalg.norm(free_indices - target_center_px, axis=1)
 
-        # Get distances that are less than distance_threshold
-        top_candidates = free_indices[distances < px_per_m * distance_threshold]
+        desired_distance_px = px_per_m * distance_threshold
+        candidate_mask = distances <= desired_distance_px
+        top_candidates = free_indices[candidate_mask]
+        top_distances = distances[candidate_mask]
         if len(top_candidates) == 0:
-            log.warning("No free candidate positions found on object boundary! Using top closest")
-            min_max_distance = np.min(distances) + px_per_m * distance_threshold
-            top_candidates = free_indices[distances < min_max_distance]
-            # Get the top 5% pixels closest to the object center (ensure at least one candidate)
-            # num_top = max(1, int(0.05 * len(free_indices)))
-            # sorted_idx = np.argsort(distances)
-            # top_candidates = free_indices[sorted_idx[:num_top]]
+            log.warning(
+                "No free candidate positions found within %.2fm of object boundary; "
+                "using closest free candidates",
+                distance_threshold,
+            )
+            num_top = max(1, min(50, int(0.05 * len(free_indices))))
+            sorted_idx = np.argsort(distances)
+            top_candidates = free_indices[sorted_idx[:num_top]]
+            top_distances = distances[sorted_idx[:num_top]]
 
         # Don't pick to close to the robot
         min_distance_threshold = 3.0
@@ -166,7 +170,9 @@ class NavGoalSampler:
             min_distance_threshold_px = px_per_m * min_distance_threshold
             robot_position_px = thormap.pos_m_to_px(robot_position)
             dist_to_robot = np.linalg.norm(top_candidates - robot_position_px, axis=1)
-            top_candidates = top_candidates[dist_to_robot > min_distance_threshold_px]
+            robot_dist_mask = dist_to_robot > min_distance_threshold_px
+            top_candidates = top_candidates[robot_dist_mask]
+            top_distances = top_distances[robot_dist_mask]
 
             if len(top_candidates) == 0:
                 log.warning(
@@ -174,8 +180,10 @@ class NavGoalSampler:
                 )
                 return None
 
-        # Randomly select one candidate from these top candidates
-        chosen_candidate = top_candidates[np.random.choice(len(top_candidates))]
+        # Prefer a close free standoff. This avoids random far fallback goals
+        # that can make the manipulation handoff unreachable.
+        desired_idx = int(np.argmin(np.abs(top_distances - desired_distance_px)))
+        chosen_candidate = top_candidates[desired_idx]
         candidate_px = chosen_candidate
 
         # Convert the candidate pixel back to world (meter) coordinates.

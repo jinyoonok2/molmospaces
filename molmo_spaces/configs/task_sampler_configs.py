@@ -280,6 +280,7 @@ class DoorOpeningTaskSamplerConfig(BaseMujocoTaskSamplerConfig):
     choose_random_door_from_scene: bool = True
     base_pose_sampling_radius_range: tuple[float, float] = (1.0, 1.5)
     # Radius of the circle around the door handle to sample the robot base pose
+    max_robot_placement_attempts: int = 10
 
     robot_safety_radius: float = (
         0.7  # Radius of the robot base to avoid collisions with the environment

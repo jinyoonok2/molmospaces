@@ -1,4 +1,5 @@
 import logging
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -54,18 +55,21 @@ class AStarPlanner(Planner):
             self._downscaled_grid = None
             self._dt = None
             self._graph = None
+            egl_device_id = int(os.environ.get("MUJOCO_EGL_DEVICE_ID", "0"))
 
             if "ithor" in self.model_path:
                 self._map = iTHORMap.from_mj_model_path(
                     model_path=self.model_path,
                     agent_radius=self.config.agent_radius,
                     px_per_m=self.config.px_per_m,
+                    device_id=egl_device_id,
                 )
             elif "procthor" in self.model_path or "holodeck" in self.model_path:
                 self._map = ProcTHORMap.from_mj_model_path(
                     model_path=self.model_path,
                     px_per_m=self.config.px_per_m,
                     agent_radius=self.config.agent_radius,
+                    device_id=egl_device_id,
                 )
             else:
                 raise ValueError(f"Unknown scene type: {self.model_path}")

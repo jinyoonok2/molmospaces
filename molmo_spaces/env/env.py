@@ -721,20 +721,21 @@ class CPUMujocoEnv(BaseMujocoEnv):
         log.info(
             f"[THORMAP] Creating occupancy map (agent_radius={agent_radius}, px_per_m={px_per_m})"
         )
+        egl_device_id = int(os.environ.get("MUJOCO_EGL_DEVICE_ID", "0"))
 
         if "ithor" in self.current_model_path:
             thormap = iTHORMap.from_mj_model_path(
                 model_path=self.current_model_path,
                 agent_radius=agent_radius,
                 px_per_m=px_per_m,
-                device_id=None,
+                device_id=egl_device_id,
             )
         elif "procthor" in self.current_model_path or "holodeck" in self.current_model_path:
             thormap = ProcTHORMap.from_mj_model_path(
                 model_path=self.current_model_path,
                 px_per_m=px_per_m,
                 agent_radius=agent_radius,
-                device_id=None,
+                device_id=egl_device_id,
             )
         else:
             raise ValueError(f"Unknown scene type: {self.current_model_path}")

@@ -82,6 +82,7 @@ class AStarPlannerPolicy(PlannerPolicy):
         self._current_waypoint = 0
         self._reached_waypoints = 0
         self._nav_plan = None
+        self._navigation_failed = False
         self._target_pos_quat = None
         self._dists_to_waypoint = []
         self._retries_left = self.config.policy_config.plan_max_retries
@@ -220,7 +221,7 @@ class AStarPlannerPolicy(PlannerPolicy):
     def max_angle_waypoints(self, angles: np.ndarray) -> np.ndarray:
         assert angles.shape == (2, 1)
 
-        angle = float(abs(normalize_ang_error(angles[1] - angles[0])))
+        angle = float(np.asarray(abs(normalize_ang_error(angles[1] - angles[0]))).reshape(-1)[0])
         num_points = int(np.ceil(angle / self.config.policy_config.path_max_inter_waypoint_angle))
         if num_points <= 1:
             # Enofrce always at least one orientation correction
@@ -377,7 +378,19 @@ class AStarPlannerPolicy(PlannerPolicy):
                 f" Dist {cur_distance:3f}"
             )
 
-            if self.robot_view.is_close_to(["base"], self.nav_plan[self._current_waypoint]):
+            is_final_waypoint = self._current_waypoint >= len(self.nav_plan) - 1
+            xy_distance = np.linalg.norm(
+                pose[:2] - self.nav_plan[self._current_waypoint][:2]
+            )
+            waypoint_reached = self.robot_view.is_close_to(
+                ["base"], self.nav_plan[self._current_waypoint]
+            ) or (
+                not is_final_waypoint
+                and xy_distance
+                <= self.config.policy_config.intermediate_waypoint_xy_threshold_m
+            )
+
+            if waypoint_reached:
                 self._reached_waypoints += 1
                 self._dists_to_waypoint = []
 
@@ -436,12 +449,14 @@ class AStarPlannerPolicy(PlannerPolicy):
                             f"Terminating due to failure to return to previous waypoint"
                             f" with {self._replan_after} missing return waypoints"
                         )
+                        self._navigation_failed = True
                         return None
                 else:
                     log.warning(
                         f"Terminating due to failure to progress with distance {cur_distance:.3f} to waypoint"
                         f" and no plan retries left."
                     )
+                    self._navigation_failed = True
                     return None
 
             else:
@@ -460,7 +475,8 @@ class AStarPlannerPolicy(PlannerPolicy):
                 f" with {self._reached_waypoints} reached waypoints."
                 f" Reason: A* could not find a valid path (see earlier PLAN FAIL logs for details)"
             )
-            return self._build_done_action()
+            self._navigation_failed = True
+            return self._build_done_action(navigation_success=False)
 
         # get next waypoint in the planned trajectory
         waypoint = self.current_waypoint()
@@ -471,14 +487,18 @@ class AStarPlannerPolicy(PlannerPolicy):
                 f"[A* DONE] Navigation complete - reached {self._reached_waypoints} waypoints"
                 f" in {self.task.num_steps_taken()} steps."
             )
-            return self._build_done_action()
+            return self._build_done_action(navigation_success=not self._navigation_failed)
 
         # Still navigating - return action to reach next waypoint
         return self._build_navigation_action(waypoint)
 
-    def _build_done_action(self):
+    def _build_done_action(self, navigation_success: bool):
         """Build action to signal episode completion."""
-        return {**self.robot_view.get_noop_ctrl_dict(["base"]), "done": True}
+        return {
+            **self.robot_view.get_noop_ctrl_dict(["base"]),
+            "done": True,
+            "navigation_success": navigation_success,
+        }
 
     def _build_navigation_action(self, waypoint):
         """Build action to navigate toward the given waypoint."""
@@ -493,8 +513,9 @@ class AStarSmoothPlannerPolicy(AStarPlannerPolicy):
             np.linalg.norm(world_waypoints[it] - world_waypoints[it - 1])
             for it in range(1, len(world_waypoints))
         )
-        num_points = 2 * int(
-            np.ceil(plan_length / self.config.policy_config.path_max_inter_waypoint_dist)
+        num_points = max(
+            2,
+            int(np.ceil(plan_length / self.config.policy_config.path_max_inter_waypoint_dist)),
         )
 
         tck, u = splprep(world_waypoints.transpose(), s=1e-5)
@@ -510,8 +531,12 @@ class AStarSmoothPlannerPolicy(AStarPlannerPolicy):
         combined_waypoints = []
 
         # First, we orient toward the 1st waypoint from the 0-th waypoint
-        start_theta = self.robot_view.get_noop_ctrl_dict(["base"])["base"][2]
-        for theta in self.max_angle_waypoints(np.stack([start_theta, thetas[0]])[:, None]):
+        start_theta = float(
+            np.asarray(self.robot_view.get_noop_ctrl_dict(["base"])["base"][2]).reshape(-1)[0]
+        )
+        for theta in self.max_angle_waypoints(
+            np.stack([start_theta, float(thetas[0])])[:, None]
+        ):
             combined_waypoints.append(np.concatenate((world_waypoints[0], theta)))
 
         for cur_x, cur_y, cur_theta in zip(x_new, y_new, thetas):
