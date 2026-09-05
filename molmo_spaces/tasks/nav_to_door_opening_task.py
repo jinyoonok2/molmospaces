@@ -15,16 +15,10 @@ log = logging.getLogger(__name__)
 class NavToDoorOpeningTaskConfig(DoorOpeningTaskConfig):
     """Task metadata used only by the nav-to-door-opening extension."""
 
-    target_grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "none"
+    target_grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "none"
     target_door_visibility_fraction: float | None = None
     target_handle_visibility_fraction: float | None = None
     visible_competing_door_names: list[str] = []
-    initial_room_id: str | None = None
-    target_door_id: str | None = None
-    target_door_position_xy: list[float] | None = None
-    target_adjacent_room_ids: list[str] = []
 
 
 @dataclass
@@ -71,16 +65,6 @@ class NavToDoorOpeningTask(DoorOpeningTask):
             return f"Navigate to the visible door and {super().get_task_description().lower()}"
         if self.config.task_config.target_grounding_mode == "point_prompt":
             return f"Navigate to the pointed door and {super().get_task_description().lower()}"
-        if self.config.task_config.target_grounding_mode == "room_door_id":
-            task_config = self.config.task_config
-            target_xy = task_config.target_door_position_xy or [0.0, 0.0]
-            adjacent_rooms = ", ".join(task_config.target_adjacent_room_ids) or "unknown rooms"
-            return (
-                f"You are in {task_config.initial_room_id}. Navigate to "
-                f"{task_config.target_door_id} at map position "
-                f"({target_xy[0]:.2f}, {target_xy[1]:.2f}), connecting "
-                f"{adjacent_rooms}, and {super().get_task_description().lower()}"
-            )
         return f"Navigate to the door and {super().get_task_description().lower()}"
 
     def get_obs_scene(self) -> dict:
@@ -99,10 +83,6 @@ class NavToDoorOpeningTask(DoorOpeningTask):
                 "visible_competing_door_names": (
                     task_config.visible_competing_door_names
                 ),
-                "initial_room_id": task_config.initial_room_id,
-                "target_door_id": task_config.target_door_id,
-                "target_door_position_xy": task_config.target_door_position_xy,
-                "target_adjacent_room_ids": task_config.target_adjacent_room_ids,
             }
         )
         return obs_scene

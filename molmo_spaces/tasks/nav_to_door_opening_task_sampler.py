@@ -18,9 +18,7 @@ log = logging.getLogger(__name__)
 class NavToDoorOpeningTaskSamplerConfig(DoorOpeningTaskSamplerConfig):
     """Sampler controls used only by the nav-to-door-opening extension."""
 
-    target_grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "none"
+    target_grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "none"
     target_visibility_camera: str = "head_camera"
     target_door_min_visibility_fraction: float = 0.0001
     target_handle_min_visibility_fraction: float = 0.00001
@@ -247,79 +245,6 @@ class NavToDoorOpeningTaskSampler(DoorOpeningTaskSampler):
         task_config.target_handle_visibility_fraction = handle_visibility
         task_config.visible_competing_door_names = competing_doors
 
-    def _nearby_room_ids(
-        self,
-        position: np.ndarray,
-        max_distance_m: float = 1.0,
-    ) -> list[str]:
-        """Return room IDs nearest a world position, ordered by map distance."""
-
-        room_map = self._cached_thormap.room_map
-        room_names = self._cached_thormap.room_ids_to_name
-        if room_map is None or room_names is None:
-            return []
-
-        pixel = self._cached_thormap.pos_m_to_px(np.asarray(position)).astype(int)
-        radius = max(1, int(round(max_distance_m * self._cached_thormap.px_per_m)))
-        row_min = max(0, int(pixel[0] - radius))
-        row_max = min(room_map.shape[0], int(pixel[0] + radius + 1))
-        col_min = max(0, int(pixel[1] - radius))
-        col_max = min(room_map.shape[1], int(pixel[1] + radius + 1))
-        local_map = room_map[row_min:row_max, col_min:col_max]
-        local_center = np.array([pixel[0] - row_min, pixel[1] - col_min])
-
-        rooms_by_distance: list[tuple[float, str]] = []
-        for room_label in np.unique(local_map):
-            room_label = int(room_label)
-            if room_label == 0 or room_label not in room_names:
-                continue
-            coordinates = np.argwhere(local_map == room_label)
-            min_distance = float(
-                np.linalg.norm(coordinates - local_center[None, :], axis=1).min()
-            )
-            if min_distance <= radius:
-                rooms_by_distance.append(
-                    (min_distance, str(room_names[room_label]))
-                )
-
-        rooms_by_distance.sort(key=lambda item: (item[0], item[1]))
-        return [room_name for _, room_name in rooms_by_distance]
-
-    def _record_room_door_id_grounding(
-        self,
-        door_object: Door,
-        door_body_names: list[str],
-        robot_position: np.ndarray,
-    ) -> None:
-        """Record a stable scene-local door ID and actionable map location."""
-
-        task_config = self.config.task_config
-        sorted_door_names = sorted(door_body_names)
-        door_index = sorted_door_names.index(door_object.name)
-        handle_position = door_object.get_handle_pose()[:3]
-        initial_rooms = self._nearby_room_ids(robot_position)
-        adjacent_rooms = self._nearby_room_ids(handle_position)
-
-        task_config.target_grounding_mode = "room_door_id"
-        task_config.initial_room_id = initial_rooms[0] if initial_rooms else "unknown_room"
-        task_config.target_door_id = (
-            f"house_{self.current_house_index}/door_{door_index}"
-        )
-        task_config.target_door_position_xy = [
-            float(handle_position[0]),
-            float(handle_position[1]),
-        ]
-        task_config.target_adjacent_room_ids = adjacent_rooms[:2]
-        log.info(
-            "[NAV-TO-DOOR ID GROUNDING] initial_room=%s target_door=%s "
-            "target_xy=(%.3f, %.3f) adjacent_rooms=%s",
-            task_config.initial_room_id,
-            task_config.target_door_id,
-            handle_position[0],
-            handle_position[1],
-            task_config.target_adjacent_room_ids,
-        )
-
     def _sample_door_and_place_robot(self, env: CPUMujocoEnv, door_body_names: list[str]):
         if len(door_body_names) == 0:
             raise HouseInvalidForTask("No doors found in the scene")
@@ -329,10 +254,6 @@ class NavToDoorOpeningTaskSampler(DoorOpeningTaskSampler):
         task_config.target_door_visibility_fraction = None
         task_config.target_handle_visibility_fraction = None
         task_config.visible_competing_door_names = []
-        task_config.initial_room_id = None
-        task_config.target_door_id = None
-        task_config.target_door_position_xy = None
-        task_config.target_adjacent_room_ids = []
 
         np.random.shuffle(door_body_names)
         sampling_radius_range = self.config.task_sampler_config.base_pose_sampling_radius_range
@@ -364,7 +285,7 @@ class NavToDoorOpeningTaskSampler(DoorOpeningTaskSampler):
                     sampling_radius_range=sampling_radius_range,
                     robot_safety_radius=self.config.task_sampler_config.robot_safety_radius,
                     face_target=self.config.task_sampler_config.target_grounding_mode
-                    in {"visible_unique", "point_prompt"},
+                    != "none",
                     check_camera_visibility=self.config.task_sampler_config.check_robot_placement_visibility,
                     visibility_resolver=self.get_visibility_resolver(env),
                     excluded_positions=excluded_positions,
@@ -408,13 +329,6 @@ class NavToDoorOpeningTaskSampler(DoorOpeningTaskSampler):
                         handle_visibility,
                         competing_doors,
                     )
-                elif grounding_mode == "room_door_id":
-                    self._record_room_door_id_grounding(
-                        door_object,
-                        door_body_names,
-                        robot_pos,
-                    )
-
                 handle_pos = door_object.get_handle_pose()[:3]
                 log.info(
                     "[NAV-TO-DOOR] Robot start=(%.3f, %.3f, %.3f), handle=(%.3f, %.3f, %.3f), distance=%.3fm",

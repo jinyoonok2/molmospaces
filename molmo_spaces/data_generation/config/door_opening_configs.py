@@ -200,9 +200,7 @@ class RBY1NavDoorOpeningDataGenConfig(DoorOpeningDataGenConfig):
     """Prototype long-horizon RBY1 navigation followed by door opening."""
 
     task_type: str = "nav_to_door_opening"
-    grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "none"
+    grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "none"
     task_horizon: int = 1200
     output_dir: Path = (
         ASSETS_DIR / "experiment_output" / "datagen" / "rby1_nav_door_opening_v1"
@@ -240,12 +238,7 @@ class RBY1NavDoorOpeningDataGenConfig(DoorOpeningDataGenConfig):
         grounding_mode = os.environ.get(
             "RBY1_NAV_DOOR_GROUNDING_MODE", self.grounding_mode
         )
-        if grounding_mode not in {
-            "none",
-            "visible_unique",
-            "point_prompt",
-            "room_door_id",
-        }:
+        if grounding_mode not in {"none", "visible_unique", "point_prompt"}:
             raise ValueError(f"Invalid nav-door grounding mode: {grounding_mode}")
         self.grounding_mode = grounding_mode
         self.task_config.task_cls = NavToDoorOpeningTask
@@ -444,9 +437,7 @@ class RBY1NavDoorOpeningVisibleGroundingSmokeConfig(
 ):
     """Stage-1 smoke test with a unique visible target door."""
 
-    grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "visible_unique"
+    grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "visible_unique"
     output_dir: Path = (
         ASSETS_DIR
         / "experiment_output"
@@ -474,9 +465,7 @@ class RBY1NavDoorOpeningPointPromptGroundingSmokeConfig(
 ):
     """Stage-2 smoke test with a visible target-handle point prompt."""
 
-    grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "point_prompt"
+    grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "point_prompt"
     output_dir: Path = (
         ASSETS_DIR
         / "experiment_output"
@@ -487,27 +476,6 @@ class RBY1NavDoorOpeningPointPromptGroundingSmokeConfig(
     @property
     def tag(self) -> str:
         return "rby1_nav_door_opening_point_prompt_grounding_smoke"
-
-
-@register_config("RBY1NavDoorOpeningRoomDoorIdGroundingSmokeConfig")
-class RBY1NavDoorOpeningRoomDoorIdGroundingSmokeConfig(
-    RBY1NavDoorOpeningHandoffSmokeConfig
-):
-    """Smoke test with current-room, target-door ID, and target XY grounding."""
-
-    grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "room_door_id"
-    output_dir: Path = (
-        ASSETS_DIR
-        / "experiment_output"
-        / "datagen"
-        / "rby1_nav_door_opening_room_door_id_grounding_smoke"
-    )
-
-    @property
-    def tag(self) -> str:
-        return "rby1_nav_door_opening_room_door_id_grounding_smoke"
 
 
 class RBY1NavDoorOpeningDistanceSweepBaseConfig(RBY1NavDoorOpeningDataGenConfig):
@@ -668,14 +636,131 @@ class RBY1NavDoorOpeningLongDistanceBalancedSweepConfig(
         return "rby1_nav_door_opening_distance_long_balanced"
 
 
+@register_config("RBY1NavDoorOpeningSimpleVisibleDataGenConfig")
+class RBY1NavDoorOpeningSimpleVisibleDataGenConfig(
+    RBY1NavDoorOpeningBalancedSweepBaseConfig
+):
+    """Focused dataset with one clearly visible door and 0.8-3.0m starts."""
+
+    grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "visible_unique"
+    task_horizon: int = 1200
+    output_dir: Path = (
+        ASSETS_DIR
+        / "experiment_output"
+        / "datagen"
+        / "rby1_nav_door_opening_simple_visible"
+    )
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        sampler_config = self.task_sampler_config
+        sampler_config.base_pose_sampling_radius_range = (0.8, 3.0)
+        sampler_config.samples_per_house = 2
+        sampler_config.max_total_attempts_multiplier = 4
+        sampler_config.max_robot_placement_attempts = 50
+        sampler_config.target_visibility_camera = "head_camera"
+        sampler_config.target_door_min_visibility_fraction = 0.001
+        sampler_config.competing_door_min_visibility_fraction = 0.001
+
+    @property
+    def tag(self) -> str:
+        return "rby1_nav_door_opening_simple_visible"
+
+
+@register_config("RBY1NavDoorOpeningSimpleVisibleSmokeConfig")
+class RBY1NavDoorOpeningSimpleVisibleSmokeConfig(
+    RBY1NavDoorOpeningSimpleVisibleDataGenConfig
+):
+    """One-episode smoke test for the simplified visible-door task."""
+
+    filter_for_successful_trajectories: bool = False
+    seed: int | None = 83067780
+    output_dir: Path = (
+        ASSETS_DIR
+        / "experiment_output"
+        / "datagen"
+        / "rby1_nav_door_opening_simple_visible_smoke"
+    )
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        sampler_config = self.task_sampler_config
+        sampler_config.house_inds = [22]
+        sampler_config.samples_per_house = 1
+        sampler_config.max_total_attempts_multiplier = 1
+
+    @property
+    def tag(self) -> str:
+        return "rby1_nav_door_opening_simple_visible_smoke"
+
+
+class RBY1NavDoorOpeningSimpleVisibleProductionBaseConfig(
+    RBY1NavDoorOpeningSimpleVisibleDataGenConfig
+):
+    """Production settings for collecting successful simple visible-door trajectories."""
+
+    filter_for_successful_trajectories: bool = True
+    seed: int | None = None
+    task_horizon: int = 1200
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        sampler_config = self.task_sampler_config
+        sampler_config.samples_per_house = 3
+        sampler_config.max_total_attempts_multiplier = 6
+        sampler_config.max_robot_placement_attempts = 75
+
+
+@register_config("RBY1NavDoorOpeningSimpleVisibleProductionAConfig")
+class RBY1NavDoorOpeningSimpleVisibleProductionAConfig(
+    RBY1NavDoorOpeningSimpleVisibleProductionBaseConfig
+):
+    """Production shard A covering ProcTHOR houses 0-10."""
+
+    output_dir: Path = (
+        ASSETS_DIR
+        / "experiment_output"
+        / "datagen"
+        / "rby1_nav_door_opening_simple_visible_production_a"
+    )
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        self.task_sampler_config.house_inds = list(range(0, 11))
+
+    @property
+    def tag(self) -> str:
+        return "rby1_nav_door_opening_simple_visible_production_a"
+
+
+@register_config("RBY1NavDoorOpeningSimpleVisibleProductionBConfig")
+class RBY1NavDoorOpeningSimpleVisibleProductionBConfig(
+    RBY1NavDoorOpeningSimpleVisibleProductionBaseConfig
+):
+    """Production shard B covering ProcTHOR houses 11-22."""
+
+    output_dir: Path = (
+        ASSETS_DIR
+        / "experiment_output"
+        / "datagen"
+        / "rby1_nav_door_opening_simple_visible_production_b"
+    )
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        self.task_sampler_config.house_inds = list(range(11, 23))
+
+    @property
+    def tag(self) -> str:
+        return "rby1_nav_door_opening_simple_visible_production_b"
+
+
 class RBY1NavDoorOpeningPointPromptSweepBaseConfig(
     RBY1NavDoorOpeningBalancedSweepBaseConfig
 ):
     """Balanced success-search sweep with visible target-handle point grounding."""
 
-    grounding_mode: Literal[
-        "none", "visible_unique", "point_prompt", "room_door_id"
-    ] = "point_prompt"
+    grounding_mode: Literal["none", "visible_unique", "point_prompt"] = "point_prompt"
 
     def model_post_init(self, __context) -> None:
         super().model_post_init(__context)
