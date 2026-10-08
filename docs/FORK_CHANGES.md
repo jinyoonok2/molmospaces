@@ -1,6 +1,6 @@
 # MolmoSpaces fork changes and branch history
 
-This fork preserves the RB-Y1 compatibility fixes needed by our MolmoBot stack. The retained project branch is `rby1-long-horizon-vla`. Its simulation code is the final state used for the navigation-to-door dataset, training, and evaluation; custom long-horizon behavior now lives in the parent project's `lrl_molmospaces_extensions/` package.
+This fork preserves the RB-Y1 compatibility fixes needed by our MolmoBot stack. The retained project branch is `rby1-compatible`. Its simulation code is the final state used for the navigation-to-door dataset, training, and evaluation; custom long-horizon behavior now lives in the parent project's `lrl_molmospaces_extensions/` package.
 
 The comparison baseline is the original MolmoBot release, `cd23becebcf72dd93a4aa5872a60802d5eff03ef`, preserved on this fork's `main`. This is a pinned upstream release, not the latest AllenAI main. This record covers changes through `fabf2af3839ca59ac35913271379fb97cd60914e`, before adding this documentation.
 
@@ -16,7 +16,7 @@ main at cd23bec
   dd7d55e  Long-horizon generation added inside MolmoSpaces
   7278de7  Visible-door generation simplified
   fabf2af  Core restored after custom behavior moved to parent extensions
-           Retained rby1-long-horizon-vla implementation
+           Retained rby1-compatible implementation
 ```
 
 Removing the redundant `rby1-custom` branch name preserves its commits: `9b5f4e1` is an ancestor of the retained branch. No history rewrite or code merge is required.
@@ -83,3 +83,5 @@ git diff fabf2af HEAD
 ```
 
 MolmoBot's corresponding compatibility branch is `rby1-compatible`, at `9c2ebfa`. Branch names belong to their individual repositories; the parent project records submodule commit IDs independently.
+
+The retained branch was renamed from `rby1-long-horizon-vla` to `rby1-compatible` on 2026-10-08 to match the MolmoBot fork. This rename preserves the final implementation and all historical commits.
