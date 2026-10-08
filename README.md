@@ -308,3 +308,7 @@ The xml files have been modified from the original versions provided by the foll
     year={2026},
 }
 ```
+
+## Changes in the RB-Y1 project fork
+
+See [the fork change record](docs/FORK_CHANGES.md) for the pinned original release, retained compatibility fixes, and the history of relocating long-horizon behavior into the parent project extensions. The retained project branch is `rby1-long-horizon-vla`.
