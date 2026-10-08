@@ -82,7 +82,7 @@ git diff 9b5f4e1 fabf2af
 git diff fabf2af HEAD
 ```
 
-MolmoBot's corresponding compatibility branch is `rby1-compatible`, with implementation pinned at `9c2ebfa`. See [its change and reproduction record](https://github.com/jinyoonok2/MolmoBot/blob/rby1-compatible/docs/FORK_CHANGES.md). Branch names belong to their individual repositories; the parent project records submodule commit IDs independently.
+MolmoBot's corresponding compatibility branch is `rby1-compatible`, with implementation pinned at `9c2ebfa`. See [its change and reproduction record](https://github.com/jinyoonok2/MolmoBot/blob/rby1-compatible/FORK_CHANGES.md). Branch names belong to their individual repositories; the parent project records submodule commit IDs independently.
 
 The retained branch was renamed from `rby1-long-horizon-vla` to `rby1-compatible` on 2026-10-08 to match the MolmoBot fork. This rename preserves the final implementation and all historical commits.
 
