@@ -23,7 +23,7 @@ Removing the redundant `rby1-custom` branch name preserves its commits: `9b5f4e1
 
 ## Changes retained from the original release
 
-Paths below are relative to this repository. The final implementation changes 15 files relative to `cd23bec`, with 377 inserted and 11 deleted lines, excluding this document.
+Paths below are relative to this repository. The final implementation changes 15 files relative to `cd23bec`, with 377 inserted and 11 deleted lines, excluding the change record and its README link.
 
 | Files | Retained change and purpose |
 |---|---|
@@ -82,6 +82,107 @@ git diff 9b5f4e1 fabf2af
 git diff fabf2af HEAD
 ```
 
-MolmoBot's corresponding compatibility branch is `rby1-compatible`, at `9c2ebfa`. Branch names belong to their individual repositories; the parent project records submodule commit IDs independently.
+MolmoBot's corresponding compatibility branch is `rby1-compatible`, with implementation pinned at `9c2ebfa`. See [its change and reproduction record](https://github.com/jinyoonok2/MolmoBot/blob/rby1-compatible/docs/FORK_CHANGES.md). Branch names belong to their individual repositories; the parent project records submodule commit IDs independently.
 
 The retained branch was renamed from `rby1-long-horizon-vla` to `rby1-compatible` on 2026-10-08 to match the MolmoBot fork. This rename preserves the final implementation and all historical commits.
+
+## Reproduce the compatible source pair
+
+Use both forks together in a fresh directory. The immutable commits below reproduce the implementation used by this project; later commits on `rby1-compatible` add change records and README links. Existing compatible checkouts already contain the fixes.
+
+```bash
+mkdir rby1-reproduction
+cd rby1-reproduction
+
+git clone --branch rby1-compatible https://github.com/jinyoonok2/MolmoBot.git
+git clone --branch rby1-compatible https://github.com/jinyoonok2/molmospaces.git
+
+git -C MolmoBot checkout --detach 9c2ebfa5cafcf13f9664e70703e25de38e1d5fcb
+git -C molmospaces checkout --detach fabf2af3839ca59ac35913271379fb97cd60914e
+```
+
+Activate a separate Python 3.11 environment. The observed working environment used Python 3.11.15, PyTorch 2.7.1+cu128, torchvision 0.22.1+cu128, MuJoCo 3.4.0, transformers 4.57.1, and pydantic 2.13.4. This is a version snapshot, not a complete dependency lock or a validated clean installation. Select CUDA packages appropriate to the host before installing the projects.
+
+For package wiring, run from the directory containing both clones:
+
+```bash
+python -m pip install -e './molmospaces[mujoco]'
+python -m pip install -e './MolmoBot/MolmoBot[eval,train]'
+python -m pip install -e './molmospaces[mujoco]'
+python -m pip check
+```
+
+MolmoBot's `eval` extra declares the original upstream MolmoSpaces commit `cd23bec` as a Git dependency. Installing it can replace the patched package; the final editable MolmoSpaces install restores the compatible fork. Diagnose dependency errors from `pip check` before running inference. Planner-based generation additionally requires cuRobo: the project's installed source was `87e857d46fa5398f268c7f31d26566351be8671d`, while MolmoSpaces' optional `curobo` extra declares `417c995647fcb173a2bc094d1284b2a4f4b000ad`. Preserve that distinction when rebuilding the planner environment.
+
+Verify package locations without loading model checkpoints:
+
+```bash
+export RBY1_SOURCE_ROOT="$PWD"
+export PYTHONPATH="$RBY1_SOURCE_ROOT/MolmoBot/MolmoBot:$RBY1_SOURCE_ROOT/molmospaces:${PYTHONPATH:-}"
+export MUJOCO_GL=egl
+export MUJOCO_EGL_DEVICE_ID=0
+export JAX_PLATFORMS=cpu
+export RBY1_MODEL_ACTION_SEED=42
+python -c 'import sys, olmo, molmo_spaces; print(sys.executable); print(olmo.__file__); print(molmo_spaces.__file__)'
+```
+
+`olmo` must resolve inside the MolmoBot clone and `molmo_spaces` inside the MolmoSpaces clone. Seed 42 controls model action sampling, not all physics or rendering variation. Use a GPU allocation for rendering/inference and make the released checkpoint, scene assets, benchmark JSON, object assets, and grasp resources available before evaluation.
+
+## Verify a benchmark episode
+
+The historical RB-Y1 benchmark-loading setup used `molmospaces-bench-v2/20260327`. Verify the actual resource directories before using it: benchmark versions and assets are separate from Git source revisions. Required task directories are:
+
+| Task | Directory within the benchmark release |
+|---|---|
+| Pick | `procthor-objaverse/rby1_benchmarks/pick_benchmark` |
+| Pick and place | `procthor-objaverse/rby1_benchmarks/pnp_benchmark` |
+| Opening | `ithor/rby1_benchmarks/opening_benchmark` |
+| Door opening | `procthor-10k/rby1_benchmarks/door_opening_benchmark` |
+
+The following is a single door-opening benchmark example, run from the directory containing both clones. Replace the paths with existing checkpoint, benchmark, resource-cache, asset, and output locations. It evaluates the released policy on a standard benchmark; it does not evaluate the parent's custom navigation-to-door task.
+
+```bash
+export RBY1_CHECKPOINT_DIR=/absolute/path/to/MolmoBot-RBY1Multitask
+export RBY1_BENCHMARK_DIR=/absolute/path/to/door_opening_benchmark
+export RBY1_EVAL_OUTPUT=/absolute/path/to/new/evaluation-output
+export MLSPACES_CACHE_DIR=/absolute/path/to/molmo-spaces-resources
+export MLSPACES_ASSETS_DIR=/absolute/path/to/molmospaces/assets
+
+python MolmoBot/MolmoBot/launch_scripts/run_eval.py \
+  --checkpoint_path "$RBY1_CHECKPOINT_DIR" \
+  --benchmark_path "$RBY1_BENCHMARK_DIR" \
+  --eval_config_cls olmo.eval.configure_molmo_spaces:MolmoBotRBY1DoorEvalConfig \
+  --idx 0 --task_horizon 400 --terminate_upon_success \
+  --output_dir "$RBY1_EVAL_OUTPUT"
+```
+
+To preview required assets for that episode before installing them, run:
+
+```bash
+python molmospaces/scripts/benchmarks/prepare_benchmark_assets.py \
+  --benchmark_dir "$RBY1_BENCHMARK_DIR" --idx 0 --dry_run
+```
+
+Remove `--dry_run` to prepare missing assets in the configured storage location. The helper loads benchmark metadata; a successful preview does not verify model inference.
+
+Check episode success, recorded H5 trajectories, and videos. A clean process exit verifies execution, not task success or reproduction of published success rates. Training and evaluation on our navigation-to-door dataset additionally use the parent `LRL_project` extensions, configs, and launchers. See [the project setup guide](https://github.com/jinyoonok2/LRL_project/blob/rby1-long-horizon-vla-training/docs/SETUP.md) for storage, asset configuration, Slurm, and the separate extension boundary.
+
+## Rebuild the retained patch on the original baseline
+
+From the directory containing both clones, use an unused worktree directory. Applying the net diff reproduces the final retained simulation changes while excluding long-horizon edits that were subsequently relocated to the parent extensions.
+
+```bash
+git -C molmospaces diff --binary \
+  cd23becebcf72dd93a4aa5872a60802d5eff03ef \
+  fabf2af3839ca59ac35913271379fb97cd60914e > molmospaces-rby1.patch
+
+git -C molmospaces worktree add --detach ../molmospaces-rebuilt \
+  cd23becebcf72dd93a4aa5872a60802d5eff03ef
+git -C molmospaces-rebuilt apply --check ../molmospaces-rby1.patch
+git -C molmospaces-rebuilt apply ../molmospaces-rby1.patch
+git -C molmospaces-rebuilt add -A
+git -C molmospaces-rebuilt diff --cached --exit-code \
+  fabf2af3839ca59ac35913271379fb97cd60914e
+```
+
+The last command must produce no diff and exit with status 0. It verifies the reconstructed tracked files against the final implementation. The worktree has the original commit plus staged patches; historical commit IDs are preserved only when using the fork directly.
